@@ -1,0 +1,11 @@
+Package: firefox
+Version: 153.0
+Architecture: arm64-v8a,armeabi-v7a,x86_64
+Android-Min-Version: 26
+Android-Target-Version: 36
+Filename: packages/firefox.apk
+Size: 301006418
+SHA256: e0607d3546ec8f1ddd9d3420fc19a504dfd9614dd2c7c50a15bfbb2d602c5592
+Maintainer: Mozilla
+Description: Firefox: a Android browser
+AddedBy: bangkkuser
