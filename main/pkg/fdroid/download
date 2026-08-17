@@ -1,0 +1,1 @@
+https://f-droid.org/F-Droid.apk
