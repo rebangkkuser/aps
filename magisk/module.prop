@@ -1,0 +1,6 @@
+id=aps
+name=APS package manager
+version=v1.0
+versionCode=1000
+author=bangkkuser
+description=A package manager for Android
