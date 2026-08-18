@@ -3,7 +3,7 @@
 dir="/data/local/aps"
 repo_dir="$dir/repos"
 pkg_dir="$dir/pkgs"
-tmp_dir="/tmp/aps"
+tmp_dir="data/local/tmp/aps"
 
 repo="https://raw.githubusercontent.com/rebangkkuser/aps/main/main"
 index="$repo/index"
