@@ -34,20 +34,18 @@ update_index() {
     }
 
     rm -rf "$pkg_dir"
-
     mkdir -p "$pkg_dir" 2>/dev/null
 
-    paste "$index_name_tmp" "$index_tmp" |
-    while IFS="$(printf '\t')" read -r name package; do
+    while IFS='=' read -r name package; do
+        name="$(echo "$name" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        package="$(echo "$package" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
         [ -z "$name" ] && continue
         [ -z "$package" ] && continue
 
-        name="$(echo "$name" | tr '[:upper:]' '[:lower:]')"
-
         mkdir -p "$pkg_dir/$name" 2>/dev/null
-
         echo "$package" > "$pkg_dir/$name/package"
-    done
+    done < "$index_name_tmp"
 
     rm -f "$index_tmp" "$index_name_tmp"
 
@@ -61,6 +59,7 @@ find_package() {
 
     if [ ! -f "$file" ]; then
         echo "error: application '$name' not found."
+        echo "run '$0 update' first."
         return 1
     fi
 
@@ -68,10 +67,11 @@ find_package() {
 }
 
 
-download_apk() {
+install_package() {
     package="$1"
-    apk="$tmp_dir/$package.apk"
+
     download_file="$repo/pkg/$package/download"
+    apk="$tmp_dir/$package.apk"
 
     url="$(curl -fsSL "$download_file")" || {
         echo "error: failed to retrieve the download url."
@@ -83,17 +83,6 @@ download_apk() {
     curl -fL "$url" -o "$apk" || {
         echo "error: failed to download the apk."
         rm -f "$apk"
-        return 1
-    }
-
-    echo "$apk"
-}
-
-
-install_package() {
-    package="$1"
-
-    apk="$(download_apk "$package")" || {
         return 1
     }
 
