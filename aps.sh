@@ -9,7 +9,8 @@ fi
 
 case "$1" in
   install)
-   curl $(cat $rdir/main.alist)/$2/download) -o /tmp/aps/$2.apk
+   mkdir -p /tmp/aps
+   curl $(cat $rdir/main.alist)/$2/download -o /tmp/aps/$2.apk
    pm install /tmp/aps/$2.apk
    rm -rf /tmp/aps/*
     ;;
