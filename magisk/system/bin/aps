@@ -1,56 +1,173 @@
 #!/system/bin/sh
 
-DIR="/data/local/aps"
-REPO_DIR="$DIR/repos"
-TMP_DIR="/tmp/aps"
+dir="/data/local/aps"
+repo_dir="$dir/repos"
+pkg_dir="$dir/pkgs"
+tmp_dir="/tmp/aps"
 
-REPO="https://raw.githubusercontent.com/rebangkkuser/aps/main/main/pkg"
+repo="https://raw.githubusercontent.com/rebangkkuser/aps/main/main"
+index="$repo/index"
+index_name="$repo/indexName"
 
-mkdir -p "$REPO_DIR" "$TMP_DIR"
+mkdir -p "$repo_dir" "$pkg_dir" 2>/dev/null
+mkdir "$tmp_dir" 2>/dev/null
 
-if [ ! -f "$REPO_DIR/main.alist" ] || [ "$(cat "$REPO_DIR/main.alist")" != "$REPO" ]; then
-    echo "$REPO" > "$REPO_DIR/main.alist"
+if [ ! -f "$repo_dir/main.alist" ] || [ "$(cat "$repo_dir/main.alist" 2>/dev/null)" != "$repo" ]; then
+    echo "$repo" > "$repo_dir/main.alist"
 fi
 
+
+update_index() {
+    echo "updating index..."
+
+    index_tmp="$tmp_dir/index"
+    index_name_tmp="$tmp_dir/indexName"
+
+    curl -fsSL "$index" -o "$index_tmp" || {
+        echo "error: failed to download index."
+        return 1
+    }
+
+    curl -fsSL "$index_name" -o "$index_name_tmp" || {
+        echo "error: failed to download indexName."
+        return 1
+    }
+
+    rm -rf "$pkg_dir"
+
+    mkdir -p "$pkg_dir" 2>/dev/null
+
+    paste "$index_name_tmp" "$index_tmp" |
+    while IFS="$(printf '\t')" read -r name package; do
+        [ -z "$name" ] && continue
+        [ -z "$package" ] && continue
+
+        name="$(echo "$name" | tr '[:upper:]' '[:lower:]')"
+
+        mkdir -p "$pkg_dir/$name" 2>/dev/null
+
+        echo "$package" > "$pkg_dir/$name/package"
+    done
+
+    rm -f "$index_tmp" "$index_name_tmp"
+
+    echo "index updated."
+}
+
+
+find_package() {
+    name="$(echo "$1" | tr '[:upper:]' '[:lower:]')"
+    file="$pkg_dir/$name/package"
+
+    if [ ! -f "$file" ]; then
+        echo "error: application '$name' not found."
+        return 1
+    fi
+
+    cat "$file"
+}
+
+
+download_apk() {
+    package="$1"
+    apk="$tmp_dir/$package.apk"
+    download_file="$repo/pkg/$package/download"
+
+    url="$(curl -fsSL "$download_file")" || {
+        echo "error: failed to retrieve the download url."
+        return 1
+    }
+
+    echo "downloading $package..."
+
+    curl -fL "$url" -o "$apk" || {
+        echo "error: failed to download the apk."
+        rm -f "$apk"
+        return 1
+    }
+
+    echo "$apk"
+}
+
+
+install_package() {
+    package="$1"
+
+    apk="$(download_apk "$package")" || {
+        return 1
+    }
+
+    echo "installing $package..."
+
+    pm install "$apk"
+
+    result=$?
+
+    rm -f "$apk"
+
+    return $result
+}
+
+
 case "$1" in
-    install)
-        if [ -z "$2" ]; then
-            echo "Usage: $0 install <package>"
-            exit 1
-        fi
 
-        PACKAGE="$2"
-        DOWNLOAD_FILE="$REPO/$PACKAGE/download"
-
-        URL="$(curl -fsSL "$DOWNLOAD_FILE")" || {
-            echo "Error: failed to retrieve the download URL."
-            exit 1
-        }
-
-        echo "Downloading $PACKAGE..."
-        curl -fL "$URL" -o "$TMP_DIR/$PACKAGE.apk" || {
-            echo "Error: failed to download the APK."
-            exit 1
-        }
-
-        echo "Installing $PACKAGE..."
-        pm install "$TMP_DIR/$PACKAGE.apk"
-
-        rm -f "$TMP_DIR/$PACKAGE.apk"
+    update)
+        update_index
         ;;
 
-    remove)
+    install)
         if [ -z "$2" ]; then
-            echo "Usage: $0 remove <package>"
+            echo "usage: $0 install <name>"
             exit 1
         fi
 
-        echo "Removing $2..."
-        pm uninstall "$2"
+        name="$(echo "$2" | tr '[:upper:]' '[:lower:]')"
+        package="$(find_package "$name")" || exit 1
+
+        echo "installing $name ($package)..."
+
+        install_package "$package"
+        ;;
+
+    uninstall|remove)
+        if [ -z "$2" ]; then
+            echo "usage: $0 uninstall <name>"
+            exit 1
+        fi
+
+        name="$(echo "$2" | tr '[:upper:]' '[:lower:]')"
+        package="$(find_package "$name")" || exit 1
+
+        echo "uninstalling $name ($package)..."
+
+        pm uninstall "$package"
+        ;;
+
+    reinstall)
+        if [ -z "$2" ]; then
+            echo "usage: $0 reinstall <name>"
+            exit 1
+        fi
+
+        name="$(echo "$2" | tr '[:upper:]' '[:lower:]')"
+        package="$(find_package "$name")" || exit 1
+
+        echo "uninstalling $name ($package)..."
+
+        pm uninstall "$package" >/dev/null 2>&1
+
+        echo "reinstalling $name ($package)..."
+
+        install_package "$package"
         ;;
 
     *)
-        echo "Usage: $0 {install|remove} <package>"
+        echo "usage:"
+        echo "  $0 update"
+        echo "  $0 install <name>"
+        echo "  $0 uninstall <name>"
+        echo "  $0 reinstall <name>"
         exit 1
         ;;
+
 esac
