@@ -204,7 +204,7 @@ download_apk() {
         return 1
     }
 
-    echo "downloading $name..."
+    echo "downloading $name..." >&2
 
     curl -fL "$url" -o "$apk" || {
         echo "error: failed to download apk."
