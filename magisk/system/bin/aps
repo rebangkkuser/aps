@@ -3,7 +3,7 @@
 dir="/data/local/aps"
 repo_dir="$dir/repos"
 pkg_dir="$dir/pkgs"
-tmp_dir="data/local/tmp/aps"
+tmp_dir="/data/local/tmp/aps"
 
 repo="https://raw.githubusercontent.com/rebangkkuser/aps/main/main"
 index="$repo/index"
@@ -20,6 +20,7 @@ fi
 normalize_name() {
     echo "$1" |
         tr '[:upper:]' '[:lower:]' |
+        tr -d '\r' |
         sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
 }
 
@@ -80,7 +81,9 @@ update_index() {
 
     while IFS='=' read -r name package rest; do
         name="$(normalize_name "$name")"
-        package="$(echo "$package" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        package="$(echo "$package" |
+            tr -d '\r' |
+            sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
         [ -z "$name" ] && continue
         [ -z "$package" ] && continue
@@ -127,7 +130,6 @@ find_package() {
     name="$(normalize_name "$1")"
 
     if ! valid_name "$name"; then
-        echo "error: invalid application name."
         return 1
     fi
 
@@ -174,16 +176,17 @@ ensure_package() {
 
 
 download_apk() {
-    package="$1"
+    name="$1"
+    package="$2"
 
-    download_file="$repo/pkg/$package/download"
-    apk="$tmp_dir/$package.apk"
-    url_file="$tmp_dir/$package.url"
+    download_file="$repo/pkg/$name/download"
+    apk="$tmp_dir/$name.apk"
+    url_file="$tmp_dir/$name.url"
 
     rm -f "$apk" "$url_file"
 
     curl -fsSL "$download_file" -o "$url_file" || {
-        echo "error: failed to retrieve download url for $package."
+        echo "error: failed to retrieve download url for $name."
         rm -f "$url_file"
         return 1
     }
@@ -192,12 +195,16 @@ download_apk() {
 
     rm -f "$url_file"
 
+    url="$(echo "$url" |
+        tr -d '\r' |
+        sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
     [ -n "$url" ] || {
         echo "error: download url is empty."
         return 1
     }
 
-    echo "downloading $package..."
+    echo "downloading $name..."
 
     curl -fL "$url" -o "$apk" || {
         echo "error: failed to download apk."
@@ -216,13 +223,14 @@ download_apk() {
 
 
 install_package() {
-    package="$1"
+    name="$1"
+    package="$2"
 
-    apk="$(download_apk "$package")" || {
+    apk="$(download_apk "$name" "$package")" || {
         return 1
     }
 
-    echo "installing $package..."
+    echo "installing $name ($package)..."
 
     pm install "$apk"
     result=$?
@@ -271,7 +279,7 @@ case "$1" in
 
         echo "installing $name ($package)..."
 
-        install_package "$package"
+        install_package "$name" "$package"
         ;;
 
     uninstall|remove)
@@ -338,7 +346,7 @@ case "$1" in
 
         echo "reinstalling $name ($package)..."
 
-        install_package "$package"
+        install_package "$name" "$package"
         ;;
 
     *)
