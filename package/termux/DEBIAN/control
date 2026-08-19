@@ -1,0 +1,9 @@
+Package: aps
+Version: 1.1.0-r0
+Section: utils
+Priority: optional
+Depends: curl, libcurl, coreutils
+Architecture: all
+Maintainer: bangkkuser
+Description: APS is a package manager for Android
+APS-DEPDESC: coreutils: grep, tr, sed, grep, mkdir, [/test. curl/libcurl: downloads
