@@ -1,7 +1,7 @@
 id=aps
 name=APS package manager
-version=v2.0.0-r0
-versionCode=2000
+version=v2.0.1-r0
+versionCode=2010
 author=bangkkuser
 description=A package manager for Android
 updateJson=https://raw.githubusercontent.com/rebangkkuser/aps/refs/heads/main/update.json
