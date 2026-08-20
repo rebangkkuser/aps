@@ -1,0 +1,124 @@
+name: Update package SHAs
+
+on:
+  schedule:
+    - cron: "0 3 * * 1,5"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-shas:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update SHA-256 hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          hash_file="main/indexOfhashes"
+          map_file="$(mktemp)"
+          output_file="$(mktemp)"
+
+          touch "$hash_file"
+
+          while IFS= read -r download; do
+            package="$(basename "$(dirname "$download")")"
+            package_dir="$(dirname "$download")"
+
+            if [[ -f "$package_dir/DontChangeSHA" ]]; then
+              echo "Skipping $package: DontChangeSHA"
+              continue
+            fi
+
+            url="$(tr -d '\r' < "$download" |
+              sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
+            if [[ -z "$url" ]]; then
+              echo "Error: empty download URL for $package"
+              exit 1
+            fi
+
+            apk="$(mktemp)"
+
+            echo "Downloading $package..."
+
+            curl \
+              --fail \
+              --location \
+              --retry 3 \
+              --retry-delay 2 \
+              --silent \
+              --show-error \
+              "$url" \
+              -o "$apk"
+
+            sha="$(sha256sum "$apk" | cut -d' ' -f1)"
+
+            rm -f "$apk"
+
+            printf '%s\t%s\n' "$package" "$sha" >> "$map_file"
+
+            echo "$package: $sha"
+
+          done < <(
+            find main/pkg \
+              -mindepth 2 \
+              -maxdepth 2 \
+              -type f \
+              -name download |
+            sort
+          )
+
+          awk -F '\t' '
+            NR == FNR {
+              hashes[$1] = $2
+              next
+            }
+
+            /^application "[^"]+" sha256 [a-fA-F0-9]{64}[[:space:]]*$/ {
+              match($0, /^application "([^"]+)"/, m)
+              package = m[1]
+
+              if (package in hashes) {
+                printf "application \"%s\" sha256 %s\n", package, hashes[package]
+                delete hashes[package]
+                next
+              }
+            }
+
+            {
+              print
+            }
+
+            END {
+              for (package in hashes)
+                printf "application \"%s\" sha256 %s\n", package, hashes[package]
+            }
+          ' "$map_file" "$hash_file" > "$output_file"
+
+          mv "$output_file" "$hash_file"
+          rm -f "$map_file"
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- main/indexOfhashes; then
+            echo "No SHA changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -- main/indexOfhashes
+          git commit -m "Update package SHA-256 hashes"
+          git push
