@@ -1,3 +1,4 @@
 # application stands for the app type
 
 application "fdroid" sha256 985f5181d48bb6bafd54083a048b391271e0ab28385881cc41294fb01a222762
+application "termux-stable" sha256 7600078440c3c34ef050bc009b00fc3215cb87ec4a449e01a696f74cf4249db2
