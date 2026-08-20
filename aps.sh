@@ -11,7 +11,6 @@ index_name="$repo/indexName"
 index_deps="$repo/indexOfDeps"
 index_breaks="$repo/indexOfBreaks"
 index_hashes="$repo/indexOfhashes"
-index_ver="$repo/verIndex"
 
 mkdir -p "$repo_dir" "$pkg_dir" "$tmp_dir" 2>/dev/null
 
@@ -24,18 +23,20 @@ if [ -t 1 ]; then
     GREEN="$(printf '\033[32m')"
     YELLOW="$(printf '\033[33m')"
     BLUE="$(printf '\033[34m')"
-    MAGENTA="$(printf '\033[35m')"
     CYAN="$(printf '\033[36m')"
     RESET="$(printf '\033[0m')"
 else
     RED=""; GREEN=""; YELLOW=""; BLUE=""
-    MAGENTA=""; CYAN=""; RESET=""
+    CYAN=""; RESET=""
 fi
 
 AUTO_YES=0
+DHASH=0
 
 normalize_name() {
-    echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d '\r' |
+    echo "$1" |
+        tr '[:upper:]' '[:lower:]' |
+        tr -d '\r' |
         sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
 }
 
@@ -47,7 +48,8 @@ valid_name() {
 }
 
 is_installed() {
-    pm list packages 2>/dev/null | grep -Fxq "package:$1"
+    pm list packages 2>/dev/null |
+        grep -Fxq "package:$1"
 }
 
 package_exists_in_index() {
@@ -67,15 +69,17 @@ find_package() {
 
 ensure_package() {
     package="$(find_package "$1")"
-    [ -n "$package" ] && {
+
+    if [ -n "$package" ]; then
         echo "$package"
         return 0
-    }
+    fi
 
     echo "application '$1' not found in local index." >&2
     echo "updating index..." >&2
 
     update_index || return 1
+
     package="$(find_package "$1")"
 
     [ -n "$package" ] || {
@@ -105,27 +109,29 @@ update_index() {
 
     download_index "$index_name" "$tmp_dir/indexName" || {
         echo "error: failed to download indexName."
-        rm -f "$tmp_dir/index"
         return 1
     }
 
     download_index "$index_deps" "$tmp_dir/indexOfDeps" 2>/dev/null || :
     download_index "$index_breaks" "$tmp_dir/indexOfBreaks" 2>/dev/null || :
     download_index "$index_hashes" "$tmp_dir/indexOfhashes" 2>/dev/null || :
-    download_index "$index_ver" "$tmp_dir/verIndex" 2>/dev/null || :
 
     rm -rf "$pkg_dir"
     mkdir -p "$pkg_dir"
 
     while IFS='=' read -r name package rest; do
         name="$(normalize_name "$name")"
-        package="$(echo "$package" | tr -d '\r' |
+        package="$(echo "$package" |
+            tr -d '\r' |
             sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
         [ -z "$name" ] && continue
         [ -z "$package" ] && continue
 
-        case "$name" in \#*) continue ;; esac
+        case "$name" in
+            \#*) continue ;;
+        esac
+
         [ -z "$rest" ] || {
             echo "warning: invalid entry: $name = $package"
             continue
@@ -155,83 +161,22 @@ update_index() {
     echo "index updated."
 }
 
-line_value() {
-    file="$1"
-    pattern="$2"
-
-    grep -F "$pattern" "$file" 2>/dev/null |
-        head -n 1 |
-        sed "s/.*$pattern//"
-}
-
 deps_for() {
     grep '^app "'"$1"'" deps ' "$tmp_dir/indexOfDeps" 2>/dev/null |
-        head -n 1 | sed 's/^.* deps //'
+        head -n 1 |
+        sed 's/^.* deps //'
 }
 
 breaks_for() {
     grep '^'"$1"' = breaks with ' "$tmp_dir/indexOfBreaks" 2>/dev/null |
-        head -n 1 | sed 's/^.*breaks with //'
+        head -n 1 |
+        sed 's/^.*breaks with //'
 }
 
 hash_for() {
     grep '^application "'"$1"'" sha256 ' "$tmp_dir/indexOfhashes" 2>/dev/null |
-        head -n 1 | sed 's/^.*sha256 //'
-}
-
-version_for() {
-    grep '^'"$1"' = ' "$tmp_dir/verIndex" 2>/dev/null |
-        head -n 1 | sed 's/^.*= //'
-}
-
-release_type() {
-    case "$1" in
-        *nightly*) echo nightly ;;
-        *alpha*) echo alpha ;;
-        *beta*) echo beta ;;
-        *-rc*) echo rc ;;
-        *) echo stable ;;
-    esac
-}
-
-release_label() {
-    case "$(release_type "$1")" in
-        stable) echo "${GREEN}stable${RESET}" ;;
-        rc) echo "${YELLOW}rc${RESET}" ;;
-        beta) echo "${YELLOW}beta${RESET}" ;;
-        alpha) echo "${RED}alpha${RESET}" ;;
-        nightly) echo "${MAGENTA}nightly${RESET}" ;;
-    esac
-}
-
-version_key() {
-    v="$1"
-    type="$(release_type "$v")"
-
-    base="$(echo "$v" | sed 's/-nightly.*//;s/-alpha.*//;s/-beta.*//;s/-rc.*//')"
-
-    IFS='.' read -r a b c rest <<EOF
-$base
-EOF
-
-    a="${a:-0}"; b="${b:-0}"; c="${c:-0}"
-
-    case "$type" in
-        alpha) r=1 ;;
-        beta) r=2 ;;
-        rc) r=3 ;;
-        stable) r=4 ;;
-        nightly) r=0 ;;
-    esac
-
-    suffix="$(echo "$v" | sed 's/^[^-]*//' | tr -cd '0-9')"
-    suffix="${suffix:-0}"
-
-    printf '%08d%08d%08d%02d%08d\n' "$a" "$b" "$c" "$r" "$suffix"
-}
-
-version_newer() {
-    [ "$(version_key "$1")" -gt "$(version_key "$2")" ]
+        head -n 1 |
+        sed 's/^.*sha256 //'
 }
 
 confirm() {
@@ -252,7 +197,7 @@ check_deps() {
     stack="$2"
 
     case " $stack " in
-        *" $name "*) 
+        *" $name "*)
             echo "${RED}error: circular dependency detected: $stack $name${RESET}"
             return 1
             ;;
@@ -292,21 +237,32 @@ check_breaks() {
 verify_hash() {
     name="$1"
     apk="$2"
+
+    [ "$DHASH" -eq 1 ] && {
+        echo "${YELLOW}SHA-256 verification skipped (--dhash).${RESET}"
+        return 0
+    }
+
     expected="$(hash_for "$name")"
 
-    [ -z "$expected" ] && return 0
+    [ -n "$expected" ] || {
+        echo "${RED}error: no SHA-256 hash found for '$name'.${RESET}"
+        echo "${RED}installation refused. Use --dhash to bypass.${RESET}"
+        return 1
+    }
 
     command -v sha256sum >/dev/null 2>&1 || {
-        echo "${YELLOW}warning: sha256sum is unavailable; skipping verification.${RESET}"
-        return 0
+        echo "${RED}error: sha256sum is unavailable.${RESET}"
+        echo "${RED}installation refused. Use --dhash to bypass.${RESET}"
+        return 1
     }
 
     actual="$(sha256sum "$apk" 2>/dev/null | awk '{print $1}')"
 
-    if [ "$actual" != "$expected" ]; then
+    if [ -z "$actual" ] || [ "$actual" != "$expected" ]; then
         echo "${RED}error: SHA-256 verification failed.${RESET}"
         echo "expected: $expected"
-        echo "actual:   $actual"
+        echo "actual:   ${actual:-unavailable}"
         return 1
     fi
 
@@ -328,7 +284,8 @@ download_apk() {
         return 1
     }
 
-    url="$(cat "$url_file" 2>/dev/null | tr -d '\r' |
+    url="$(cat "$url_file" 2>/dev/null |
+        tr -d '\r' |
         sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
     rm -f "$url_file"
@@ -355,30 +312,12 @@ download_apk() {
     echo "$apk"
 }
 
-download_only() {
-    name="$(normalize_name "$1")"
-    valid_name "$name" || {
-        echo "error: invalid application name."
-        return 1
-    }
-
-    package="$(ensure_package "$name")" || return 1
-    apk="$(download_apk "$name" "$package")" || return 1
-
-    verify_hash "$name" "$apk" || {
-        rm -f "$apk"
-        return 1
-    }
-
-    echo "downloaded: $apk"
-}
-
 install_package() {
     name="$1"
     package="$2"
 
     check_breaks "$name" || return 1
-    check_deps "$name" "$stack" || return 1
+    check_deps "$name" "" || return 1
 
     for dep in $(deps_for "$name"); do
         dep_package="$(find_package "$dep")"
@@ -414,6 +353,7 @@ install_package() {
 
 do_install() {
     name="$(normalize_name "$1")"
+
     valid_name "$name" || {
         echo "error: invalid application name."
         return 1
@@ -426,10 +366,7 @@ do_install() {
         return 0
     fi
 
-    version="$(version_for "$name")"
-
     echo "package: $package"
-    [ -n "$version" ] && echo "version: $version ($(release_label "$version"))"
 
     deps="$(deps_for "$name")"
     [ -n "$deps" ] && echo "dependencies: $deps"
@@ -472,6 +409,25 @@ remove_package() {
     echo "${GREEN}uninstallation successful.${RESET}"
 }
 
+download_only() {
+    name="$(normalize_name "$1")"
+
+    valid_name "$name" || {
+        echo "error: invalid application name."
+        return 1
+    }
+
+    package="$(ensure_package "$name")" || return 1
+    apk="$(download_apk "$name" "$package")" || return 1
+
+    verify_hash "$name" "$apk" || {
+        rm -f "$apk"
+        return 1
+    }
+
+    echo "downloaded: $apk"
+}
+
 search() {
     term="$(normalize_name "$1")"
 
@@ -486,17 +442,13 @@ search() {
 
     while IFS='=' read -r name package rest; do
         name="$(normalize_name "$name")"
-        package="$(echo "$package" | tr -d '\r' |
+        package="$(echo "$package" |
+            tr -d '\r' |
             sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
         echo "$name $package" | grep -Fqi "$term" || continue
 
-        version="$(version_for "$name")"
-
-        printf '%s' "$name"
-        [ -n "$version" ] && printf '  %s  [%s]' "$version" "$(release_label "$version")"
-        printf '\n  %s\n' "$package"
-
+        printf '%s  %s\n' "$name" "$package"
         found=1
     done < "$tmp_dir/indexName"
 
@@ -508,17 +460,15 @@ list_packages() {
 
     while IFS='=' read -r name package rest; do
         name="$(normalize_name "$name")"
-        package="$(echo "$package" | tr -d '\r' |
+        package="$(echo "$package" |
+            tr -d '\r' |
             sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
         [ -n "$name" ] || continue
         [ -n "$package" ] || continue
 
         if is_installed "$package"; then
-            version="$(version_for "$name")"
-            printf '%s' "$name"
-            [ -n "$version" ] && printf '  %s' "$version"
-            printf '\n'
+            echo "$name ($package)"
         fi
     done < "$tmp_dir/indexName"
 }
@@ -527,11 +477,8 @@ info() {
     name="$(normalize_name "$1")"
     package="$(ensure_package "$name")" || return 1
 
-    version="$(version_for "$name")"
-
     echo "name: $name"
     echo "package: $package"
-    [ -n "$version" ] && echo "version: $version ($(release_label "$version"))"
 
     deps="$(deps_for "$name")"
     breaks="$(breaks_for "$name")"
@@ -548,57 +495,23 @@ info() {
     fi
 }
 
-upgrade() {
-    [ -s "$tmp_dir/indexName" ] || update_index || return 1
+reinstall() {
+    name="$(normalize_name "$1")"
+    package="$(ensure_package "$name")" || return 1
 
-    upgrades="$tmp_dir/upgrades"
-    : > "$upgrades"
+    if is_installed "$package"; then
+        confirm "uninstall $name before reinstalling?" || return 0
+        pm uninstall "$package" || return 1
+    fi
 
-    while IFS='=' read -r name package rest; do
-        name="$(normalize_name "$name")"
-        package="$(echo "$package" | tr -d '\r' |
-            sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-
-        [ -n "$name" ] || continue
-        [ -n "$package" ] || continue
-        is_installed "$package" || continue
-
-        current="$(dumpsys package "$package" 2>/dev/null |
-            sed -n 's/^[[:space:]]*versionName=\([^[:space:]]*\).*/\1/p' | head -n 1)"
-        available="$(version_for "$name")"
-
-        [ -n "$current" ] || continue
-        [ -n "$available" ] || continue
-
-        if version_newer "$available" "$current"; then
-            echo "$name|$package|$current|$available" >> "$upgrades"
-        fi
-    done < "$tmp_dir/indexName"
-
-    [ -s "$upgrades" ] || {
-        echo "${GREEN}all packages are up to date.${RESET}"
-        return 0
-    }
-
-    echo "available upgrades:"
-    while IFS='|' read -r name package current available; do
-        echo "  $name: $current -> $available"
-    done < "$upgrades"
-
-    confirm "upgrade packages?" || {
-        echo "upgrade cancelled."
-        return 0
-    }
-
-    while IFS='|' read -r name package current available; do
-        install_package "$name" "$package" || return 1
-    done < "$upgrades"
-
-    rm -f "$upgrades"
+    install_package "$name" "$package"
 }
 
 clean() {
-    find "$tmp_dir" -type f \( -name '*.apk' -o -name '*.url' \) -delete 2>/dev/null
+    find "$tmp_dir" -type f \
+        \( -name '*.apk' -o -name '*.url' \) \
+        -delete 2>/dev/null
+
     echo "${GREEN}APS cache cleaned.${RESET}"
 }
 
@@ -608,32 +521,43 @@ usage() {
     echo "  $0 search <term>"
     echo "  $0 info <name>"
     echo "  $0 list"
-    echo "  $0 install|ins|get <name> [-y]"
-    echo "  $0 insy <name>"
-    echo "  $0 download|dl <name>"
+    echo "  $0 install|ins|get <name> [-y] [--dhash]"
+    echo "  $0 insy <name> [--dhash]"
+    echo "  $0 download|dl <name> [--dhash]"
     echo "  $0 remove|rm|del <name> [-y]"
     echo "  $0 rmy <name>"
-    echo "  $0 reinstall <name> [-y]"
-    echo "  $0 upgrade [-y]"
+    echo "  $0 reinstall <name> [-y] [--dhash]"
     echo "  $0 clean"
 }
 
-case "$1" in
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -y) AUTO_YES=1 ;;
+        --dhash) DHASH=1 ;;
+        *) break ;;
+    esac
+    shift
+done
+
+command="$1"
+shift
+
+case "$command" in
     update)
         update_index
         ;;
 
     search)
-        search "$2"
+        search "$1"
         ;;
 
     info)
-        [ -n "$2" ] || {
+        [ -n "$1" ] || {
             echo "usage: $0 info <name>"
             exit 1
         }
         [ -s "$tmp_dir/indexName" ] || update_index || exit 1
-        info "$2"
+        info "$1"
         ;;
 
     list)
@@ -641,91 +565,59 @@ case "$1" in
         ;;
 
     install|ins|get)
-        [ -n "$2" ] || {
-            echo "usage: $0 install <name> [-y]"
+        [ -n "$1" ] || {
+            echo "usage: $0 install <name> [-y] [--dhash]"
             exit 1
         }
-
-        AUTO_YES=0
-        [ "$3" = "-y" ] && AUTO_YES=1
-        [ "$2" = "-y" ] && {
-            echo "error: application name missing."
-            exit 1
-        }
-
         [ -s "$tmp_dir/indexName" ] || update_index || exit 1
-        do_install "$2"
+        do_install "$1"
         ;;
 
     insy)
-        [ -n "$2" ] || {
-            echo "usage: $0 insy <name>"
+        [ -n "$1" ] || {
+            echo "usage: $0 insy <name> [--dhash]"
             exit 1
         }
-
         AUTO_YES=1
         [ -s "$tmp_dir/indexName" ] || update_index || exit 1
-        do_install "$2"
+        do_install "$1"
         ;;
 
     download|dl)
-        [ -n "$2" ] || {
-            echo "usage: $0 download <name>"
+        [ -n "$1" ] || {
+            echo "usage: $0 download <name> [--dhash]"
             exit 1
         }
-
         [ -s "$tmp_dir/indexName" ] || update_index || exit 1
-        download_only "$2"
+        download_only "$1"
         ;;
 
-    uninstall|remove|rm|del)
-        [ -n "$2" ] || {
+    remove|rm|del|uninstall)
+        [ -n "$1" ] || {
             echo "usage: $0 remove <name> [-y]"
             exit 1
         }
-
-        AUTO_YES=0
-        [ "$3" = "-y" ] && AUTO_YES=1
         [ -s "$tmp_dir/indexName" ] || update_index || exit 1
-        remove_package "$2"
+        remove_package "$1"
         ;;
 
     rmy)
-        [ -n "$2" ] || {
+        [ -n "$1" ] || {
             echo "usage: $0 rmy <name>"
             exit 1
         }
-
         AUTO_YES=1
         [ -s "$tmp_dir/indexName" ] || update_index || exit 1
-        remove_package "$2"
+        remove_package "$1"
         ;;
 
     reinstall)
-        [ -n "$2" ] || {
-            echo "usage: $0 reinstall <name> [-y]"
+        [ -n "$1" ] || {
+            echo "usage: $0 reinstall <name> [-y] [--dhash]"
             exit 1
         }
-
-        AUTO_YES=0
-        [ "$3" = "-y" ] && AUTO_YES=1
         [ -s "$tmp_dir/indexName" ] || update_index || exit 1
-
-        name="$(normalize_name "$2")"
-        package="$(ensure_package "$name")" || exit 1
-
-        if is_installed "$package"; then
-            confirm "uninstall $name before reinstalling?" || exit 0
-            pm uninstall "$package" || exit 1
-        fi
-
-        install_package "$name" "$package"
-        ;;
-
-    upgrade)
-        AUTO_YES=0
-        [ "$2" = "-y" ] && AUTO_YES=1
-        upgrade
+        reinstall "$1"
         ;;
 
     clean)
