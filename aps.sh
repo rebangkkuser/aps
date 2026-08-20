@@ -540,7 +540,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 command="$1"
-shift
+[ "$#" -gt 0 ] && shift
 
 case "$command" in
     update)
