@@ -1,2 +1,3 @@
 fdroid = org.fdroid.fdroid
 termux-stable = com.termux
+termux-x11
