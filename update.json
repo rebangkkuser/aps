@@ -1,7 +1,7 @@
 {
-  "version": "2.0.0-r0",
-  "versionCode": 2000,
-  "zipUrl": "https://github.com/rebangkkuser/aps/releases/download/2.0-hotfix/aps_2.0.0.zip",
+  "version": "2.0.1-r0",
+  "versionCode": 2010,
+  "zipUrl": "https://github.com/rebangkkuser/aps/releases/download/2.0.1/aps_2.0.1.zip",
   "changelog": "https://raw.githubusercontent.com/rebangkkuser/aps/refs/heads/main/changelog.md"
 }
 
