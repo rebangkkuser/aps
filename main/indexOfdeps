@@ -1,0 +1,1 @@
+app "termux-x11" deps termux-stable
