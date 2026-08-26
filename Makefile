@@ -12,7 +12,7 @@ syntax:
 	sh -n aps.sh
 
 clean:
-	:
+	echo "no"
 
 mgskins:
 	su -c magisk install aps*.zip
