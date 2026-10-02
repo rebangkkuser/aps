@@ -1,6 +1,6 @@
 # application stands for the app type
 
-application "fdroid" sha256 985f5181d48bb6bafd54083a048b391271e0ab28385881cc41294fb01a222762
+application "fdroid" sha256 83d3fe522281c3cb89fce3bc05038f81b3c3b32c108536941f184c5f9bb53778
 application "termux-stable" sha256 7600078440c3c34ef050bc009b00fc3215cb87ec4a449e01a696f74cf4249db2
-application "termux-x11" sha256 ad140ee57de106d86ec98bb10f8f61819d9b71bc8875c64aa3a393935b48ec46
+application "termux-x11" sha256 97e1c5d471cbb6af84267d7d2d3c475f3862ad2cc2aecebfe98ed0097a0164c0
 application "firefox" sha256 e0607d3546ec8f1ddd9d3420fc19a504dfd9614dd2c7c50a15bfbb2d602c5592
