@@ -57,6 +57,8 @@ package_exists_in_index() {
 }
 
 find_package() {
+    local name file package
+
     name="$(normalize_name "$1")"
     valid_name "$name" || return 1
 
@@ -68,6 +70,8 @@ find_package() {
 }
 
 ensure_package() {
+    local package
+
     package="$(find_package "$1")"
 
     if [ -n "$package" ]; then
@@ -91,6 +95,8 @@ ensure_package() {
 }
 
 download_index() {
+    local url file
+
     url="$1"
     file="$2"
 
@@ -100,6 +106,8 @@ download_index() {
 }
 
 update_index() {
+    local name package rest
+
     echo "updating index..."
 
     download_index "$index" "$tmp_dir/index" || {
@@ -180,6 +188,8 @@ hash_for() {
 }
 
 confirm() {
+    local answer
+
     [ "$AUTO_YES" -eq 1 ] && return 0
 
     printf '%s [y/N] ' "$1"
@@ -193,6 +203,8 @@ confirm() {
 }
 
 check_deps() {
+    local name stack dep dep_package
+
     name="$1"
     stack="$2"
 
@@ -220,6 +232,8 @@ check_deps() {
 }
 
 check_breaks() {
+    local name conflict package
+
     name="$1"
 
     for conflict in $(breaks_for "$name"); do
@@ -235,6 +249,8 @@ check_breaks() {
 }
 
 verify_hash() {
+    local name apk expected actual
+
     name="$1"
     apk="$2"
 
@@ -270,6 +286,8 @@ verify_hash() {
 }
 
 download_apk() {
+    local name package download_file apk url_file url
+
     name="$1"
     package="$2"
 
@@ -313,6 +331,8 @@ download_apk() {
 }
 
 install_package() {
+    local name package dep dep_package apk result
+
     name="$1"
     package="$2"
 
@@ -352,6 +372,8 @@ install_package() {
 }
 
 do_install() {
+    local name package deps breaks
+
     name="$(normalize_name "$1")"
 
     valid_name "$name" || {
@@ -383,6 +405,8 @@ do_install() {
 }
 
 remove_package() {
+    local name package result
+
     name="$(normalize_name "$1")"
     package="$(ensure_package "$name")" || return 1
 
@@ -410,6 +434,8 @@ remove_package() {
 }
 
 download_only() {
+    local name package apk
+
     name="$(normalize_name "$1")"
 
     valid_name "$name" || {
@@ -429,6 +455,8 @@ download_only() {
 }
 
 search() {
+    local term found name package rest
+
     term="$(normalize_name "$1")"
 
     [ -n "$term" ] || {
@@ -456,6 +484,8 @@ search() {
 }
 
 list_packages() {
+    local name package rest
+
     [ -s "$tmp_dir/indexName" ] || update_index || return 1
 
     while IFS='=' read -r name package rest; do
@@ -474,6 +504,8 @@ list_packages() {
 }
 
 info() {
+    local name package deps breaks hash
+
     name="$(normalize_name "$1")"
     package="$(ensure_package "$name")" || return 1
 
@@ -496,6 +528,8 @@ info() {
 }
 
 reinstall() {
+    local name package
+
     name="$(normalize_name "$1")"
     package="$(ensure_package "$name")" || return 1
 
@@ -527,7 +561,6 @@ usage() {
     echo "  $0 remove|rm|del <name> [-y]"
     echo "  $0 rmy <name>"
     echo "  $0 reinstall <name> [-y] [--dhash]"
-    echo "  $0 clean"
 }
 
 while [ "$#" -gt 0 ]; do
@@ -541,6 +574,17 @@ done
 
 command="$1"
 [ "$#" -gt 0 ] && shift
+
+case "$command" in
+    install|ins|get|insy|download|dl|remove|rm|del|uninstall|rmy|reinstall)
+        for arg do
+            case "$arg" in
+                -y) AUTO_YES=1 ;;
+                --dhash) DHASH=1 ;;
+            esac
+        done
+        ;;
+esac
 
 case "$command" in
     update)
