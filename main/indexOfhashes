@@ -2,5 +2,5 @@
 
 application "fdroid" sha256 19d51fad482239f6df6a99120e34513667e9a86d136dafdc4a211a68c3327b52
 application "termux-stable" sha256 7600078440c3c34ef050bc009b00fc3215cb87ec4a449e01a696f74cf4249db2
-application "termux-x11" sha256 d9eb4b99f6f89384caa3a136f9c2d4d3c3e6ac356a1ee264db9e579ddc848a20
+application "termux-x11" sha256 4774472f9a4f4fb42702a08dbbe9b5c37d59bb4905b0688f4c5e8b4576a3518d
 application "firefox" sha256 e0607d3546ec8f1ddd9d3420fc19a504dfd9614dd2c7c50a15bfbb2d602c5592
